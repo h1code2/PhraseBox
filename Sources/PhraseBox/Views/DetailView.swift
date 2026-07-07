@@ -23,7 +23,7 @@ struct DetailView: View {
                                 Label(draft.isFavorite ? "常用" : "设为常用", systemImage: draft.isFavorite ? "star.fill" : "star")
                             }
                             Button {
-                                store.exportSelectedToSystem()
+                                store.exportToSystem(draft)
                             } label: {
                                 Label("写入系统", systemImage: "keyboard")
                             }
@@ -56,6 +56,7 @@ struct DetailView: View {
                 .formStyle(.grouped)
                 .padding(.horizontal, 20)
                 .onChange(of: draft) { value in
+                    guard value != store.selectedPhrase else { return }
                     store.update(value)
                 }
                 .onChange(of: store.selectedID) { _ in

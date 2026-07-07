@@ -4,6 +4,7 @@ struct ContentView: View {
     @ObservedObject var store: PhraseStore
     @State private var isImporting = false
     @State private var isExporting = false
+    @State private var exportDocument = PhraseExportDocument()
 
     var body: some View {
         NavigationSplitView {
@@ -43,20 +44,27 @@ struct ContentView: View {
                     }
                     Divider()
                     Button("导入 JSON") { isImporting = true }
-                    Button("导出 JSON") { isExporting = true }
+                    Button("导出 JSON") {
+                        guard let data = store.exportData() else { return }
+                        exportDocument = PhraseExportDocument(data: data)
+                        isExporting = true
+                    }
                 } label: {
                     Label("更多", systemImage: "ellipsis.circle")
                 }
             }
         }
         .fileImporter(isPresented: $isImporting, allowedContentTypes: [.json]) { result in
-            if case .success(let url) = result {
+            switch result {
+            case .success(let url):
                 store.importPhrases(from: url)
+            case .failure(let error):
+                store.showError("导入失败：\(error.localizedDescription)")
             }
         }
         .fileExporter(
             isPresented: $isExporting,
-            document: PhraseExportDocument(data: store.exportData() ?? Data("[]".utf8)),
+            document: exportDocument,
             contentType: .json,
             defaultFilename: "phrases.json"
         ) { result in

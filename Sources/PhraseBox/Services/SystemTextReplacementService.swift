@@ -15,13 +15,10 @@ struct SystemTextReplacementWriteResult {
 
 enum SystemTextReplacementService {
     private static let key = "NSUserDictionaryReplacementItems"
+    private static let changeNotification = Notification.Name("NSUserDictionaryReplacementItemsDidChange")
 
     static func load() -> [SystemTextReplacement] {
-        guard let items = UserDefaults.standard.object(forKey: key) as? [[String: Any]] else {
-            return []
-        }
-
-        return items.compactMap { item in
+        rawItems().compactMap { item in
             guard isEnabled(item["on"]),
                   let shortcut = item["replace"] as? String,
                   let phrase = item["with"] as? String else {
@@ -38,13 +35,12 @@ enum SystemTextReplacementService {
 
     static func save(_ replacements: [SystemTextReplacement]) throws -> SystemTextReplacementWriteResult {
         var domain = UserDefaults.standard.persistentDomain(forName: UserDefaults.globalDomain) ?? [:]
-        var items = (domain[key] as? [[String: Any]])
-            ?? (UserDefaults.standard.object(forKey: key) as? [[String: Any]])
-            ?? []
+        var items = rawItems(from: domain)
 
         var added = 0
         var updated = 0
         var skipped = 0
+        var seenShortcuts = Set<String>()
 
         for replacement in replacements {
             let shortcut = replacement.shortcut.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -53,8 +49,12 @@ enum SystemTextReplacementService {
                 skipped += 1
                 continue
             }
+            guard seenShortcuts.insert(shortcut).inserted else {
+                skipped += 1
+                continue
+            }
 
-            if let index = items.firstIndex(where: { ($0["replace"] as? String) == shortcut }) {
+            if let index = items.firstIndex(where: { normalized($0["replace"] as? String) == shortcut }) {
                 if (items[index]["with"] as? String) != phrase || !isEnabled(items[index]["on"]) {
                     items[index]["replace"] = shortcut
                     items[index]["with"] = phrase
@@ -77,7 +77,25 @@ enum SystemTextReplacementService {
             throw CocoaError(.fileWriteUnknown)
         }
 
+        if added + updated > 0 {
+            DistributedNotificationCenter.default().post(name: changeNotification, object: nil)
+        }
+
         return SystemTextReplacementWriteResult(added: added, updated: updated, skipped: skipped)
+    }
+
+    private static func rawItems(from domain: [String: Any]? = nil) -> [[String: Any]] {
+        if let items = domain?[key] as? [[String: Any]] {
+            return items
+        }
+        if let globalItems = UserDefaults.standard.persistentDomain(forName: UserDefaults.globalDomain)?[key] as? [[String: Any]] {
+            return globalItems
+        }
+        return (UserDefaults.standard.object(forKey: key) as? [[String: Any]]) ?? []
+    }
+
+    private static func normalized(_ value: String?) -> String {
+        (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func isEnabled(_ value: Any?) -> Bool {
