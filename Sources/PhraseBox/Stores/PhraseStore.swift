@@ -283,7 +283,7 @@ final class PhraseStore: ObservableObject {
             let result = try SystemTextReplacementService.save(replacements)
             if showResult {
                 if result.changed > 0 {
-                    showInfo("已写入系统：新增 \(result.added) 条，更新 \(result.updated) 条。")
+                    showInfo("已写入并刷新系统文本替换：新增 \(result.added) 条，更新 \(result.updated) 条。若某个 App 仍不生效，请确认该 App 的“编辑 > 替换 > 文本替换”已开启。")
                 } else if result.skipped > 0 {
                     showInfo(
                         result.skipped == replacements.count
